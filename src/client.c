@@ -12,11 +12,15 @@ void print_help() {
     printf("list_friends\n");
     printf("add_friend <username>\n");
     printf("accept_friend <username>\n");
+    printf("reject_friend <username>\n");
     printf("chat <username> <message>\n");
     printf("create_group <groupname>\n");
     printf("invite_group <groupname> <username>\n");
     printf("join_group <groupname>\n");
     printf("group_chat <groupname> <message>\n");
+    printf("leave_group <groupname>\n");
+    printf("kick_group <groupname> <username>\n");
+    printf("unfriend <username>\n");
     printf("help\n");
     printf("================\n");
 }
@@ -77,6 +81,18 @@ void process_input(char *buffer) {
             strcpy(msg.recipient, arg1);
             send_message(sockfd, &msg);
 
+        } else if (strcmp(cmd, "reject_friend") == 0) {
+            if (n < 2) { printf("Usage: reject_friend <user>\n"); return; }
+            msg.type = MSG_FRIEND_REJECT;
+            strcpy(msg.recipient, arg1);
+            send_message(sockfd, &msg);
+
+        } else if (strcmp(cmd, "unfriend") == 0) {
+            if (n < 2) { printf("Usage: unfriend <user>\n"); return; }
+            msg.type = MSG_REMOVE_FRIEND;
+            strcpy(msg.recipient, arg1);
+            send_message(sockfd, &msg);
+
         } else if (strcmp(cmd, "chat") == 0) {
             if(n < 3) { printf("Usage: chat <user> <msg>\n"); return; }
             msg.type = MSG_PRIVATE_CHAT;
@@ -110,6 +126,19 @@ void process_input(char *buffer) {
              strcpy(msg.payload, arg2);
              send_message(sockfd, &msg);
         
+        } else if (strcmp(cmd, "leave_group") == 0) {
+             if(n < 2) { printf("Usage: leave_group <name>\n"); return; }
+             msg.type = MSG_LEAVE_GROUP;
+             strcpy(msg.payload, arg1); // Group name
+             send_message(sockfd, &msg);
+
+        } else if (strcmp(cmd, "kick_group") == 0) {
+             if(n < 3) { printf("Usage: kick_group <group> <user>\n"); return; }
+             msg.type = MSG_KICK_GROUP;
+             strcpy(msg.payload, arg1); // Group name
+             strcpy(msg.recipient, arg2); // Target User
+             send_message(sockfd, &msg);
+
         } else {
             printf("Unknown command.\n");
         }

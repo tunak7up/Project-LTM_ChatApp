@@ -115,6 +115,55 @@ void remove_client(int fd) {
     }
 }
 
+// Helper to check and deliver offline messages
+void check_offline_messages(User *u) {
+    FILE *fp = fopen("data/offline_msgs.txt", "r");
+    if (!fp) return; // No offline messages
+
+    FILE *tmp = fopen("data/offline_msgs.tmp", "w");
+    if (!tmp) {
+        fclose(fp);
+        return;
+    }
+
+    char line[BUFFER_SIZE];
+    int found = 0;
+    while (fgets(line, sizeof(line), fp)) {
+        char recipient[MAX_USERNAME], sender[MAX_USERNAME], payload[BUFFER_SIZE];
+        // Parse line: recipient sender payload
+        // Note: sscanf with %[^\n] handles spaces in payload
+        if (sscanf(line, "%s %s %[^\n]", recipient, sender, payload) == 3) {
+            if (strcmp(recipient, u->username) == 0) {
+                // Message for me
+                Message msg;
+                memset(&msg, 0, sizeof(msg));
+                msg.type = MSG_PRIVATE_CHAT;
+                strcpy(msg.sender, sender);
+                strcpy(msg.recipient, recipient);
+                strcpy(msg.payload, payload);
+                send_message(u->socket_fd, &msg);
+                found = 1;
+            } else {
+                // Not for me, keep it
+                fprintf(tmp, "%s", line);
+            }
+        } else {
+             // Malformed line, keep it just in case or drop? Keep to be safe.
+             fprintf(tmp, "%s", line);
+        }
+    }
+
+    fclose(fp);
+    fclose(tmp);
+
+    if (found) {
+        remove("data/offline_msgs.txt");
+        rename("data/offline_msgs.tmp", "data/offline_msgs.txt");
+    } else {
+        remove("data/offline_msgs.tmp"); // No changes
+    }
+}
+
 void handle_client_message(int fd, Message *msg) {
     Message response;
     memset(&response, 0, sizeof(response));
@@ -136,6 +185,7 @@ void handle_client_message(int fd, Message *msg) {
             if(u->is_online) {
                 response.type = MSG_ERROR;
                 strcpy(response.payload, "Already logged in");
+                send_message(fd, &response);
             } else {
                 u->is_online = 1;
                 u->socket_fd = fd;
@@ -160,13 +210,17 @@ void handle_client_message(int fd, Message *msg) {
                     strcat(fl_msg.payload, buf);
                 }
                 send_message(fd, &fl_msg);
+                
+                // Check offline messages
+                check_offline_messages(u);
+                
                 return; // Response already sent
             }
         } else {
             response.type = MSG_ERROR;
             strcpy(response.payload, "Invalid credentials");
+            send_message(fd, &response);
         }
-        send_message(fd, &response);
 
     } else if (msg->type == MSG_LOGOUT) {
         remove_client(fd);
@@ -249,6 +303,95 @@ void handle_client_message(int fd, Message *msg) {
                  send_message(other->socket_fd, &notify);
              }
          }
+    } else if (msg->type == MSG_FRIEND_REJECT) {
+        // Remove the pending friend request
+        User *me = find_user(msg->sender);
+        User *other = find_user(msg->recipient);
+        
+        if (me && other) {
+            // Remove from me (rejection)
+            // Ideally we should have a remove_friend_db function but lets do inline for now or add to db.c
+            // We reuse remove_friend logic or implement "reject" specifically?
+            // "reject" is essentially removing the pending status.
+            
+            // Remove from me
+            int found = 0;
+            for(int i=0; i<me->friend_count; i++) {
+                if(strcmp(me->friends[i].username, other->username)==0) {
+                     // Shift remaining
+                     for(int j=i; j<me->friend_count-1; j++) me->friends[j] = me->friends[j+1];
+                     me->friend_count--;
+                     found = 1;
+                     break;
+                }
+            }
+            // Remove from other
+            for(int i=0; i<other->friend_count; i++) {
+                if(strcmp(other->friends[i].username, me->username)==0) {
+                     for(int j=i; j<other->friend_count-1; j++) other->friends[j] = other->friends[j+1];
+                     other->friend_count--;
+                     break;
+                }
+            }
+            
+            save_data();
+            response.type = MSG_SUCCESS;
+            strcpy(response.payload, "Friend request rejected");
+            send_message(fd, &response);
+
+            if(other->is_online && found) {
+                 Message notify;
+                 notify.type = MSG_NOTIFY;
+                 strcpy(notify.sender, me->username);
+                 sprintf(notify.payload, "%s rejected your friend request", me->username);
+                 send_message(other->socket_fd, &notify);
+            }
+        } else {
+             response.type = MSG_ERROR;
+             strcpy(response.payload, "User not found");
+             send_message(fd, &response);
+        }
+
+    } else if (msg->type == MSG_REMOVE_FRIEND) {
+        // me removed other
+        User *me = find_user(msg->sender);
+        User *other = find_user(msg->recipient);
+        if(me && other) {
+            // Remove from me
+            int found = 0;
+            for(int i=0; i<me->friend_count; i++) {
+                if(strcmp(me->friends[i].username, other->username)==0) {
+                     for(int j=i; j<me->friend_count-1; j++) me->friends[j] = me->friends[j+1];
+                     me->friend_count--;
+                     found = 1;
+                     break;
+                }
+            }
+            // Remove from other
+            for(int i=0; i<other->friend_count; i++) {
+                if(strcmp(other->friends[i].username, me->username)==0) {
+                     for(int j=i; j<other->friend_count-1; j++) other->friends[j] = other->friends[j+1];
+                     other->friend_count--;
+                     break;
+                }
+            }
+            save_data();
+            response.type = MSG_SUCCESS;
+            strcpy(response.payload, "Friend removed");
+            
+             // Notify other
+            if(other->is_online && found) {
+                 Message notify;
+                 notify.type = MSG_NOTIFY;
+                 strcpy(notify.sender, me->username);
+                 sprintf(notify.payload, "%s removed you from friends", me->username);
+                 send_message(other->socket_fd, &notify);
+            }
+        } else {
+             response.type = MSG_ERROR; strcpy(response.payload, "User not found");
+        }
+        send_message(fd, &response);
+
     } else if (msg->type == MSG_PRIVATE_CHAT) {
         User *target = find_user(msg->recipient);
         if(!target) {
@@ -337,6 +480,44 @@ void handle_client_message(int fd, Message *msg) {
             response.type = MSG_ERROR; strcpy(response.payload, "Failed to join");
         }
         send_message(fd, &response);
+
+    } else if (msg->type == MSG_LEAVE_GROUP) {
+        if(leave_group(msg->payload, msg->sender)) {
+             response.type = MSG_SUCCESS; strcpy(response.payload, "Left group");
+        } else {
+             response.type = MSG_ERROR; strcpy(response.payload, "Failed to leave group");
+        }
+        send_message(fd, &response);
+
+    } else if (msg->type == MSG_KICK_GROUP) {
+         // payload=group, recipient=target_user, sender=requester
+         Group *g = find_group(msg->payload);
+         if(!g) {
+              response.type = MSG_ERROR; strcpy(response.payload, "Group not found");
+         } else {
+             // Check if sender is owner (member[0])
+             if(strcmp(g->members[0], msg->sender) != 0) {
+                  response.type = MSG_ERROR; strcpy(response.payload, "Only owner can kick members");
+             } else {
+                 if(strcmp(msg->recipient, msg->sender) == 0) {
+                      response.type = MSG_ERROR; strcpy(response.payload, "Cannot kick yourself");
+                 } else {
+                      if(leave_group(msg->payload, msg->recipient)) { // Reuse leave logic
+                           response.type = MSG_SUCCESS; strcpy(response.payload, "Member kicked");
+                           // Notify kicked user?
+                           User* kicked = find_user(msg->recipient);
+                           if(kicked && kicked->is_online) {
+                                Message notify; notify.type = MSG_NOTIFY; strcpy(notify.sender, "SYSTEM");
+                                sprintf(notify.payload, "You were kicked from group %s", msg->payload);
+                                send_message(kicked->socket_fd, &notify);
+                           }
+                      } else {
+                           response.type = MSG_ERROR; strcpy(response.payload, "Member not found in group");
+                      }
+                 }
+             }
+         }
+         send_message(fd, &response);
     
     } else if (msg->type == MSG_GROUP_CHAT) {
         // recipient is groupName
