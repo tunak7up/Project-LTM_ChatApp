@@ -87,13 +87,31 @@ int main() {
     return 0;
 }
 
+// Helper to notify friends of status change
+void notify_friends(User *u, int online) {
+    for (int i = 0; i < u->friend_count; i++) {
+        // Only notify if accepted friend
+        if (u->friends[i].status == FRIEND_ACCEPTED) {
+            User *f = find_user(u->friends[i].username);
+            if (f && f->is_online) {
+                Message msg;
+                memset(&msg, 0, sizeof(msg));
+                msg.type = MSG_NOTIFY;
+                strcpy(msg.sender, "SYSTEM");
+                sprintf(msg.payload, "Friend %s is now %s", u->username, online ? "Online" : "Offline");
+                send_message(f->socket_fd, &msg);
+            }
+        }
+    }
+}
+
 void remove_client(int fd) {
     User *u = find_user_by_fd(fd);
     if (u) {
         u->socket_fd = -1;
         u->is_online = 0;
         printf("User %s logged out (disconnect)\n", u->username);
-        // Notify friends?
+        notify_friends(u, 0); // Notify friends of disconnection
     }
 }
 
@@ -124,6 +142,25 @@ void handle_client_message(int fd, Message *msg) {
                 response.type = MSG_SUCCESS;
                 strcpy(response.payload, "Login successful");
                 printf("User %s logged in on fd %d\n", u->username, fd);
+                send_message(fd, &response);
+
+                // Notify friends
+                notify_friends(u, 1);
+
+                // Send Friend List Immediately
+                Message fl_msg;
+                memset(&fl_msg, 0, sizeof(fl_msg));
+                fl_msg.type = MSG_GET_FRIEND_LIST;
+                strcpy(fl_msg.payload, "");
+                for(int i=0; i<u->friend_count; i++) {
+                    char buf[64];
+                    User *f = find_user(u->friends[i].username);
+                    int online = f ? f->is_online : 0;
+                    sprintf(buf, "%s:%d:%d;", u->friends[i].username, u->friends[i].status, online);
+                    strcat(fl_msg.payload, buf);
+                }
+                send_message(fd, &fl_msg);
+                return; // Response already sent
             }
         } else {
             response.type = MSG_ERROR;
@@ -166,7 +203,9 @@ void handle_client_message(int fd, Message *msg) {
         User *u = find_user(msg->sender);
         if(!u) return;
 
-        response.type = MSG_SUCCESS;
+        if(!u) return;
+
+        response.type = MSG_GET_FRIEND_LIST;
         // Build payload manually: "name:status,name:status..."
         strcpy(response.payload, "");
         for(int i=0; i<u->friend_count; i++) {
