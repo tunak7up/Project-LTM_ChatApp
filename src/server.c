@@ -1,6 +1,35 @@
 #include "common.h"
 #include "db.h"
 #include <errno.h>
+#include <time.h>
+#include <stdarg.h>
+
+void log_activity(const char *format, ...) {
+    va_list args;
+    time_t now;
+    struct tm *local;
+    char time_str[64];
+
+    time(&now);
+    local = localtime(&now);
+    strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", local);
+
+    // Print to console
+    printf("[%s] ", time_str);
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+
+    // Append to file
+    FILE *fp = fopen("data/log.txt", "a");
+    if (fp) {
+        fprintf(fp, "[%s] ", time_str);
+        va_start(args, format);
+        vfprintf(fp, format, args);
+        va_end(args);
+        fclose(fp);
+    }
+}
 
 void handle_client_message(int fd, Message *msg);
 void remove_client(int fd);
@@ -13,7 +42,8 @@ int main() {
     int max_fd;
 
     load_data();
-    printf("Data loaded.\n");
+    load_data();
+    log_activity("Data loaded.\n");
 
     if ((listener_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         perror("Socket");
@@ -41,7 +71,7 @@ int main() {
         exit(1);
     }
 
-    printf("Server running on port %d...\n", PORT);
+    log_activity("Server running on port %d...\n", PORT);
 
     FD_ZERO(&master_set);
     FD_SET(listener_fd, &master_set);
@@ -63,14 +93,14 @@ int main() {
                     } else {
                         FD_SET(new_fd, &master_set);
                         if (new_fd > max_fd) max_fd = new_fd;
-                        printf("New connection from %s on socket %d\n", inet_ntoa(client_addr.sin_addr), new_fd);
+                        log_activity("New connection from %s on socket %d\n", inet_ntoa(client_addr.sin_addr), new_fd);
                     }
                 } else {
                     Message msg;
                     int nbytes = receive_message(i, &msg);
                     if (nbytes <= 0) {
                         if (nbytes == 0) {
-                            printf("Socket %d hung up\n", i);
+                            log_activity("Socket %d hung up\n", i);
                         } else {
                             perror("Recv");
                         }
@@ -110,7 +140,7 @@ void remove_client(int fd) {
     if (u) {
         u->socket_fd = -1;
         u->is_online = 0;
-        printf("User %s logged out (disconnect)\n", u->username);
+        log_activity("User %s logged out (disconnect)\n", u->username);
         notify_friends(u, 0); // Notify friends of disconnection
     }
 }
@@ -191,7 +221,7 @@ void handle_client_message(int fd, Message *msg) {
                 u->socket_fd = fd;
                 response.type = MSG_SUCCESS;
                 strcpy(response.payload, "Login successful");
-                printf("User %s logged in on fd %d\n", u->username, fd);
+                log_activity("User %s logged in on fd %d\n", u->username, fd);
                 send_message(fd, &response);
 
                 // Notify friends
