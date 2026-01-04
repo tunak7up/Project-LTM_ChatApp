@@ -1,6 +1,28 @@
-[2025-12-28 23:07:30] Data loaded.
-[2025-12-28 23:07:30] Server running on port 8080...
-[2025-12-28 23:07:41] New connection from 127.0.0.1 on socket 4
-[2025-12-28 23:07:47] User tuan logged in on fd 4
-[2025-12-28 23:08:09] New connection from 127.0.0.1 on socket 5
-[2025-12-28 23:08:15] User bach logged in on fd 5
+[2026-01-04 15:07:32] Data loaded.
+[2026-01-04 15:07:32] Server running on port 8080...
+[2026-01-04 15:07:34] New connection from 127.0.0.1 on socket 4
+[2026-01-04 15:07:35] Socket 4 hung up
+[2026-01-04 15:07:35] New connection from 127.0.0.1 on socket 4
+[2026-01-04 15:07:36] Socket 4 hung up
+[2026-01-04 15:07:36] New connection from 127.0.0.1 on socket 4
+[2026-01-04 15:07:37] Socket 4 hung up
+[2026-01-04 15:07:37] New connection from 127.0.0.1 on socket 4
+[2026-01-04 15:07:37] New connection from 127.0.0.1 on socket 5
+[2026-01-04 15:07:37] User alice logged in on fd 4
+[2026-01-04 15:07:37] User bob logged in on fd 5
+[2026-01-04 15:07:48] User alice logged out (disconnect)
+[2026-01-04 15:07:48] User bob logged out (disconnect)
+[2026-01-04 15:09:01] Data loaded.
+[2026-01-04 15:09:01] Server running on port 8080...
+[2026-01-04 15:09:11] New connection from 127.0.0.1 on socket 4
+[2026-01-04 15:09:31] New connection from 127.0.0.1 on socket 5
+[2026-01-04 15:09:58] User tuan logged in on fd 4
+[2026-01-04 15:10:22] User bach logged in on fd 5
+[2026-01-04 15:11:04] New connection from 127.0.0.1 on socket 6
+[2026-01-04 15:11:07] User alice logged in on fd 6
+[2026-01-04 15:11:43] Data loaded.
+[2026-01-04 15:11:43] Server running on port 8080...
+[2026-01-04 15:11:46] New connection from 127.0.0.1 on socket 4
+[2026-01-04 15:11:53] User tuan logged in on fd 4
+[2026-01-04 15:12:18] New connection from 127.0.0.1 on socket 5
+[2026-01-04 15:12:21] User bach logged in on fd 5

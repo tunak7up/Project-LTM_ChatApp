@@ -1,4 +1,6 @@
+alice bob 2
+alice tuan 2
+bob alice 2
 tuan bach 2
-tuan test 2
+tuan alice 2
 bach tuan 2
-test tuan 2

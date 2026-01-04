@@ -9,7 +9,12 @@ int group_count = 0;
 void load_data() {
     FILE *fp = fopen("data/users.txt", "r");
     if (fp) {
-        while (fscanf(fp, "%s %s", users[user_count].username, users[user_count].password) != EOF) {
+        char name[MAX_USERNAME], pass[MAX_PASSWORD];
+        while (user_count < 100 && fscanf(fp, "%31s %31s", name, pass) != EOF) {
+            if (find_user(name)) continue; // Skip duplicates
+            
+            strcpy(users[user_count].username, name);
+            strcpy(users[user_count].password, pass);
             users[user_count].socket_fd = -1;
             users[user_count].is_online = 0;
             users[user_count].friend_count = 0;
@@ -18,7 +23,6 @@ void load_data() {
         fclose(fp);
     }
 
-    // Load Friends (separate file or complexity? Let's use friends.txt: user1 user2 status)
     fp = fopen("data/friends.txt", "r");
     char u1[MAX_USERNAME], u2[MAX_USERNAME];
     int status;
@@ -27,32 +31,42 @@ void load_data() {
             User *user1 = find_user(u1);
             User *user2 = find_user(u2);
             if (user1 && user2) {
-                // Add to user1
-                strcpy(user1->friends[user1->friend_count].username, u2);
-                user1->friends[user1->friend_count].status = (FriendStatus)status;
-                user1->friend_count++;
+                // Check if already friends
+                int exists = 0;
+                for(int i=0; i<user1->friend_count; i++) {
+                    if(strcmp(user1->friends[i].username, u2) == 0) {
+                        exists = 1; 
+                        break;
+                    }
+                }
+                
+                if (!exists) {
+                    strcpy(user1->friends[user1->friend_count].username, u2);
+                    user1->friends[user1->friend_count].status = (FriendStatus)status;
+                    user1->friend_count++;
+                }
 
-                // Add to user2 (if status is ACCEPTED, or PENDING handled logically)
-                // For simplicity, store both directions in file or memory?
-                // Memory: Store relation on both sides
-                int s2 = status; 
-                if(status == FRIEND_PENDING) s2 = FRIEND_NONE; // PENDING is directed? u1 asked u2.
-                // Actually let's assume PENDING means u1 -> u2.
-                // So u2 sees Pending from u1?
-                // Let's keep it symmetric in load for now, handle logic later.
+                // Add to user2 (symmetrically check)
+                // Note: The file might contain "u2 u1 status" later, so we should be careful.
+                // Current logic seems to rely on the file having one or both directions?
+                // The existing code didn't add to user2 here explicitly?
+                // Wait, looking at previous code (lines 39-60 in view_file 318):
+                // It treats file line "u1 u2 status" as defining the relation.
+                // The block I see in step 318 lines 33-60:
+                /*
+                if (user1 && user2) {
+                    // Add to user1
+                    strcpy(user1->friends[user1->friend_count].username, u2);
+                     ...
+                }
+                */
+                // It ONLY adds to user1. This implies the file is expected to have "u2 u1" as well?
+                // OR the loop in save_data writes both?
+                // save_data (lines 114-126 of step 318) iterates ALL users and saves their friends.
+                // So yes, the file contains "u1 u2" AND "u2 u1".
+                // So we only need to add to user1 here, and let the loop handle the "u2 u1" line when it comes.
                 
-                // If u1 requested u2, u1 has PENDING (Waiting), u2 has PENDING (Action needed)?
-                // Let's denote status 1=Pending, 2=Accepted.
-                // In file: requester responder status
-                // In Memory: 
-                //    u1 has friend u2 (status PENDING_SENT)
-                //    u2 has friend u1 (status PENDING_RECEIVED)
-                
-                // For this assignment, let's simplify: 
-                // in file "u1 u2 1" -> u1 sent to u2.
-                // Load:
-                // u1.friends add u2 (PENDING)
-                // u2.friends add u1 (INCOMING) - Need new enum or check logic
+                // HOWEVER, if the file is corrupted and has "u1 u2" twice, we need the check above.
             }
         }
         fclose(fp);
@@ -63,9 +77,23 @@ void load_data() {
     // Actually, simple format: 'groupname member_count m1 m2 ...'
     fp = fopen("data/groups.txt", "r");
     if (fp) {
-        while(fscanf(fp, "%s %d", groups[group_count].name, &groups[group_count].member_count) != EOF) {
-            for(int i=0; i<groups[group_count].member_count; i++) {
-                fscanf(fp, "%s", groups[group_count].members[i]);
+        char gname[MAX_GROUP_NAME];
+        int count;
+        while(group_count < MAX_GROUPS && fscanf(fp, "%31s %d", gname, &count) != EOF) {
+            if(find_group(gname)) {
+                // Skip members if group exists
+                char tmp[MAX_USERNAME];
+                for(int i=0; i<count; i++) fscanf(fp, "%31s", tmp);
+                continue; 
+            }
+            strcpy(groups[group_count].name, gname);
+            groups[group_count].member_count = 0; // Load carefully
+            
+            for(int i=0; i<count && i < MAX_MEMBERS; i++) {
+                char memberName[MAX_USERNAME];
+                fscanf(fp, "%31s", memberName);
+                strcpy(groups[group_count].members[i], memberName);
+                groups[group_count].member_count++;
             }
             group_count++;
         }

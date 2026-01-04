@@ -35,10 +35,19 @@ void handle_client_message(int fd, Message *msg);
 void remove_client(int fd);
 
 int main() {
+    //listener File descriptor của socket server để socket bind listen accept và 
+    //new_fd File descriptor của socket client để socket accept
+    //file descriptor là số nguyên đại diện cho socket
+    //đây là 2 loại socket, listener chỉ có 1, còn new_fd có thể có nhiều dựa theo số user đang login
     int listener_fd, new_fd;
+    //struct sockaddr_in gồm port(8080), address(ip 127.0.0.1), family(AF_INET)
     struct sockaddr_in server_addr, client_addr;
+    //socklen_t là kích thước của struct sockaddr_in
     socklen_t addr_len;
+    //fd_set là tập hợp các file descriptor, master_set chứa tất cả các file descriptor, read_set chứa các file descriptor có dữ liệu
     fd_set master_set, read_set;
+    //max_fd là file descriptor lớn nhất trong master_set, để select biết phải duyệt đến đâu
+    //select là hàm để chọn các file descriptor có dữ liệu
     int max_fd;
 
     load_data();

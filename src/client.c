@@ -232,6 +232,9 @@ int main(int argc, char *argv[]) {
                 // Remove newline
                 buffer[strcspn(buffer, "\n")] = 0;
                 process_input(buffer);
+            } else {
+                // EOF on stdin (e.g. script finished or Ctrl+D)
+                break;
             }
         }
 

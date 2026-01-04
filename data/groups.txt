@@ -1,3 +1,1 @@
-lap-trinh-mang 2 tuan bach
-nhomchat 2 tuan test
-testnhomchat 2 tuan bach
+dev_team 1 alice
